@@ -4,6 +4,7 @@
 {-# LANGUAGE ExistentialQuantification #-}
 {-# LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE MultiWayIf #-}
 
 import Control.Applicative ((<$>))
 import Data.Foldable (msum)
@@ -48,6 +49,31 @@ data Kind a b = SM_U a b | SM_Uc a b | SM_D a b | SM_Dc a b | SM_v a b | SM_E a 
               | NP_Qu a | NP_Quc a | NP_Qd a | NP_Qdc a 
               | NP_Lv a | NP_Lvc a | NP_Le a | NP_Lec a   
            deriving (Show,Eq,Ord)
+
+conjugateParticle :: Kind a b -> Maybe (Kind a b)
+conjugateParticle (SM_U  a b) = Just (SM_Uc a b)
+conjugateParticle (SM_Uc a b) = Just (SM_U  a b)
+conjugateParticle (SM_D  a b) = Just (SM_Dc a b)
+conjugateParticle (SM_Dc a b) = Just (SM_D  a b)
+conjugateParticle (SM_v  a b) = Nothing
+conjugateParticle (SM_E  a b) = Just (SM_Ec a b)
+conjugateParticle (SM_Ec a b) = Just (SM_E  a b)
+conjugateParticle (NP_X a)    = Nothing
+conjugateParticle (NP_D a)    = Just (NP_Dc a)
+conjugateParticle (NP_Dc a)   = Just (NP_D a)
+conjugateParticle (NP_U a)    = Just (NP_Uc a)
+conjugateParticle (NP_Uc a)   = Just (NP_U a)
+conjugateParticle (NP_E a)    = Just (NP_Ec a)
+conjugateParticle (NP_Ec a)   = Just (NP_E a)
+conjugateParticle (NP_Qu a)   = Just (NP_Quc a)
+conjugateParticle (NP_Quc a)  = Just (NP_Qu a)
+conjugateParticle (NP_Qd a)   = Just (NP_Qdc a)
+conjugateParticle (NP_Qdc a)  = Just (NP_Qd a)
+conjugateParticle (NP_Lv a)   = Just (NP_Lvc a)
+conjugateParticle (NP_Lvc a)  = Just (NP_Lv a)
+conjugateParticle (NP_Le a)   = Just (NP_Lec a)
+conjugateParticle (NP_Lec a)  = Just (NP_Le a)
+
 
 getSF :: Kind a b -> a 
 getSF (SM_U  a _) = a
@@ -249,17 +275,17 @@ class Line l where
 data FDir = FDir Dir Bool 
             deriving (Show,Eq,Ord) 
 
-data FLine = FL (VLabel,VLabel) FDir 
+data FLine a = FL (VLabel,VLabel) FDir a 
            deriving (Show,Eq,Ord)
 
-data SLine = SL (VLabel,VLabel) Dir
+data SLine a = SL (VLabel,VLabel) Dir a
            deriving (Show,Eq,Ord)
 
-instance Line FLine where 
-  vertices (FL vs _) = vs
+instance Line (FLine a) where 
+  vertices (FL vs _ _) = vs
 
-instance Line SLine where 
-  vertices (SL vs _) = vs 
+instance Line (SLine a) where 
+  vertices (SL vs _ _) = vs 
 
 data Externals = Externals { extPtl1 :: External
                            , extPtl2 :: External
@@ -292,17 +318,17 @@ makePairComplement I3 = (V2,V4)
 makePairComplement I4 = (V2,V3)
 
 
-makeFPair :: (FDir,FDir) -> Partition -> (FLine,FLine)   
+makeFPair :: (FDir,FDir) -> Partition -> (FLine (),FLine ())   
 makeFPair (dir1,dir2) p = 
   let n1 = makePair p 
       n2 = makePairComplement p 
-  in (FL n1 dir1, FL n2 dir2)
+  in (FL n1 dir1 (), FL n2 dir2 ())
 
-makeSPair :: (Dir,Dir) -> Partition -> (SLine,SLine) 
+makeSPair :: (Dir,Dir) -> Partition -> (SLine (),SLine ()) 
 makeSPair (dir1,dir2) p = 
   let n1 = makePair p 
       n2 = makePairComplement p 
-  in (SL n1 dir1, SL n2 dir2) 
+  in (SL n1 dir1 (), SL n2 dir2 ()) 
 
 
 
@@ -347,24 +373,24 @@ allfline p = [makeFPair (d1,d2) p | d1 <- allfdir, d2 <- allfdir]
 
 allsline p = [makeSPair (d1,d2) p | d1 <- alldir, d2 <- alldir ] 
 
-makeAllCombFromPartition :: Comb Partition Partition -> [Comb (FLine,FLine) (SLine,SLine)] 
+makeAllCombFromPartition :: Comb Partition Partition -> [Comb (FLine (),FLine ()) (SLine (),SLine ())] 
 makeAllCombFromPartition (Comb p1 p2) = 
    [Comb fpair spair | fpair <- allfline p1, spair <- allsline p2] 
 
-makeAllBlob :: Blob () -> [Blob (Comb (FLine,FLine) (SLine,SLine))]
+makeAllBlob :: Blob () -> [Blob (Comb (FLine (),FLine ()) (SLine (),SLine ()))]
 makeAllBlob (Blob (Externals pt1 pt2 pt3 pt4) ()) = 
   Blob (Externals pt1 pt2 pt3 pt4) <$>  [x | c <- allcomb, x <- makeAllCombFromPartition c ]
 
-scalarVertexDir :: SLine -> VLabel -> Maybe Dir 
-scalarVertexDir (SL (v1,v2) d) v 
+scalarVertexDir :: SLine () -> VLabel -> Maybe Dir 
+scalarVertexDir (SL (v1,v2) d ()) v 
   | v == v1 && d == I = Just O  
   | v == v2 && d == I = Just I 
   | v == v1 && d == O = Just I
   | v == v2 && d == O = Just O 
   | otherwise = Nothing 
 
-fermionVertexDir :: FLine -> VLabel -> Maybe Dir 
-fermionVertexDir (FL (v1,v2) (FDir d havemass)) v 
+fermionVertexDir :: FLine () -> VLabel -> Maybe Dir 
+fermionVertexDir (FL (v1,v2) (FDir d havemass) ()) v 
   | v == v1 && d == I && havemass     = Just O  
   | v == v1 && d == I && not havemass = Just O  
   | v == v2 && d == I && havemass     = Just O 
@@ -383,7 +409,7 @@ hasVertex l v
     | otherwise = Nothing 
   where (v1,v2) = vertices l 
 
-vertexDirection :: Blob (Comb (FLine,FLine) (SLine,SLine)) -> VLabel -> (Dir,Dir,Dir)
+vertexDirection :: Blob (Comb (FLine (),FLine ()) (SLine (), SLine ())) -> VLabel -> (Dir,Dir,Dir)
 vertexDirection (Blob (Externals p1 p2 p3 p4) (Comb (f1,f2) (s1,s2))) v = 
   let d1 = case v of 
              V1 -> extDir p1
@@ -394,22 +420,24 @@ vertexDirection (Blob (Externals p1 p2 p3 p4) (Comb (f1,f2) (s1,s2))) v =
       d3 = (fromJust . msum . map (flip scalarVertexDir v)) [s1,s2] 
   in (d1,d2,d3)
 
-matchDirection :: [(Dir,Dir,Dir)] -> Blob (Comb (FLine,FLine) (SLine,SLine)) -> Bool 
+matchDirection :: [(Dir,Dir,Dir)] -> Blob (Comb (FLine (),FLine ()) (SLine (),SLine ())) -> Bool 
 matchDirection dirs blob = all (\x -> (vertexDirection blob x) `elem` dirs) [V1,V2,V3,V4]
 
 
-findVertexEdgeRel :: Blob (Comb (FLine,FLine) (SLine,SLine)) -> VLabel -> (VLabel, (FLine,SLine))
+findVertexEdgeRel :: Blob (Comb (FLine (),FLine ()) (SLine (),SLine ())) -> VLabel
+                  -> (VLabel, ((Int,Dir),(Int,Dir)))
 findVertexEdgeRel (Blob (Externals _ _ _ _) (Comb (f1,f2) (s1,s2))) v = 
-  case (hasVertex f1 v, hasVertex s1 v) of 
-    (Just _, Just _)  -> (v, (f1,s1))
-    (Just _, Nothing) -> (v, (f1,s2))
-    (Nothing, Just _) -> (v, (f2,s1))
-    (Nothing,Nothing) -> (v, (f2,s2))
+  case (hasVertex f1 v, hasVertex s1 v, hasVertex f2 v, hasVertex s2 v) of 
+    (Just iof, Just ios, Nothing, Nothing) -> (v,((1,iof),(1,ios)))
+    (Just iof, Nothing, Nothing, Just ios) -> (v,((1,iof),(2,ios)))
+    (Nothing, Just ios, Just iof, Nothing) -> (v,((2,iof),(1,ios)))
+    (Nothing, Nothing, Just iof, Just ios) -> (v,((2,iof),(2,ios)))
 
 
 
 
-makeVertexEdgeMap :: Blob (Comb (FLine,FLine) (SLine,SLine)) -> M.Map VLabel (FLine,SLine)
+makeVertexEdgeMap :: Blob (Comb (FLine (),FLine ()) (SLine (),SLine ())) 
+                  -> M.Map VLabel ((Int,Dir),(Int,Dir))
 makeVertexEdgeMap blob = let lst = map (findVertexEdgeRel blob) [V1,V2,V3,V4] 
                          in M.fromList lst 
 
@@ -430,6 +458,84 @@ selectVertexForExt (External k d) vs =
       | k == k2 && d == d2 = Just (Handle (k2,d2),[Handle (k1,d1), Handle h'])
       | otherwise = Nothing 
 
+
+type MatchF = Either (FLine ()) (FLine (PtlKind Fermion))
+
+type MatchS = Either (SLine ()) (SLine (PtlKind Scalar))
+
+
+
+matchFSLines :: Handle 
+             -> ((Int,Dir),(Int,Dir)) 
+             -> Comb (MatchF, MatchF) (MatchS, MatchS) 
+             -> Maybe (Comb (MatchF, MatchF) (MatchS, MatchS))
+matchFSLines (Handle (k1,d1)) ((i,iof),(j,ios)) c@(Comb (f1,f2) (s1,s2)) = 
+  case getSF k1 of 
+    S -> if | j == 1 -> 
+              case s1 of 
+                Left s@(SL (v1,v2) d ()) ->
+                  let ms' = if matchVertexSLineDir (ios,d1) s then Just (SL (v1,v2) d k1) else Nothing
+                  in maybe Nothing (\s'->Just (Comb (f1,f2) (Right s',s2))) ms' 
+                Right s@(SL (v1,v2) d k) -> 
+                  if matchVertexSLineDir (ios,d1) s && k == k1 then Just c else Nothing
+            | j == 2 ->
+              case s2 of 
+                Left s@(SL (v1,v2) d ()) ->
+                  let ms' = if matchVertexSLineDir (ios,d1) s then Just (SL (v1,v2) d k1) else Nothing
+                  in maybe Nothing (\s'->Just (Comb (f1,f2) (s1,Right s'))) ms' 
+                Right s@(SL (v1,v2) d k) -> 
+                  if matchVertexSLineDir (ios,d1) s && k == k1 then Just c else Nothing
+            | otherwise -> (error "error in matchFSLines")
+    F -> if | i == 1 -> 
+              case f1 of 
+                Left f@(FL (v1,v2) d ()) ->
+                  let mf' = if matchVertexFLineDir (iof,d1) f then Just (FL (v1,v2) d k1) else Nothing
+                  in maybe Nothing (\f'->Just (Comb (Right f',f2) (s1,s2))) mf'
+                Right f@(FL (v1,v2) d k) -> 
+                  if matchVertexFLineDir (iof,d1) f && k == k1 then Just c else Nothing
+            | i == 2 ->
+              case f2 of 
+                Left f@(FL (v1,v2) d ()) -> do 
+                  k' <- getFermionKind iof d k1 
+                  f' <- if matchVertexFLineDir (iof,d1) f 
+                          then return (FL (v1,v2) d k') 
+                          else Nothing
+                  return (Comb (f1,Right f') (s1,s2))
+                Right f@(FL (v1,v2) d k) -> do
+                  k' <- getFermionKind iof d k1
+                  if matchVertexFLineDir (iof,d1) f && k == k'
+                    then return c 
+                    else Nothing
+            | otherwise -> (error "error in matchFSLines")
+
+getFermionKind :: Dir -> FDir -> PtlKind Fermion -> Maybe (PtlKind Fermion)
+getFermionKind _ (FDir d False) k1 = Just k1
+getFermionKind I (FDir I True) k1 = Just k1 
+getFermionKind O (FDir O True) k1 = Just k1
+getFermionKind I (FDir O True) k1 = conjugateParticle k1 
+getFermionKind O (FDir I True) k1 = conjugateParticle k1
+
+matchVertexSLineDir :: (Dir,Dir) -> SLine a -> Bool 
+matchVertexSLineDir (ios,d1) (SL (v1,v2) d _) = 
+  (ios == I && d == I && d1 == O) 
+  || (ios == I && d == O && d1 == I) 
+  || (ios == O && d == I && d1 == I)
+  || (ios == O && d == O && d1 == O)
+ 
+matchVertexFLineDir :: (Dir,Dir) -> FLine a -> Bool 
+matchVertexFLineDir (iof,d1) (FL (v1,v2) (FDir d hasmass) _) = 
+  (iof == I && d == I && not hasmass && d1 == O) 
+  || (iof == I && d == O && not hasmass && d1 == I) 
+  || (iof == O && d == I && not hasmass && d1 == I)
+  || (iof == O && d == O && not hasmass && d1 == O)
+  -- 
+  || (iof == I && d == I && hasmass && d1 == I) 
+  || (iof == I && d == O && hasmass && d1 == O) 
+  || (iof == O && d == I && hasmass && d1 == O)
+  || (iof == O && d == O && hasmass && d1 == I)
+
+
+
 {-
 data Exts a = Exts { extsPtl1 :: (External, a)
                    , extsPtl2 :: (External, a)
@@ -437,10 +543,6 @@ data Exts a = Exts { extsPtl1 :: (External, a)
                    , extsPtl4 :: (External, a) }
 -}
 
-{-
-matchFSLines :: Handle -> (FLine,SLine) -> Bool 
-matchFSLines (Handle (k1,d1)) = 
--}
 
 {-
 match :: Exts [VertexFFS Gen] -> M.Map VLabel (FLine,SLine) -> Bool 
@@ -460,7 +562,7 @@ tryVertex p1 vtx v m =
 
 
 
-main = do 
+main2 = do 
   putStrLn "superpotential test"
   mapM_ print $ map emcharge superpotXQLD
   let vertexFFSwoGen = concatMap superpot3toVertexFFS  superpotXQLD 
@@ -476,7 +578,7 @@ main = do
   mapM_ print $ (selectVertexForExt e4 vertexFFSwGen)
 
 
-main2 = do 
+main = do 
   putStrLn "loop" 
   print $ deltaS io_bar_sR_Gamma_dR_squared 
   -- let Blob _ _ _ _ cmb = test 
@@ -487,5 +589,5 @@ main2 = do
 
   mapM_ print matchedblobs -}
   print (head allblobs)
-  print (makeVertexEdgeMap (head allblobs))
+  mapM_ print (map makeVertexEdgeMap allblobs)
  
