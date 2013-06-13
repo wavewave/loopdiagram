@@ -6,6 +6,7 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE TupleSections #-}
 
 import Control.Applicative ((<$>),(<*>))
 import Control.Monad ((>=>))
@@ -33,10 +34,13 @@ instance Show (SF a) where
   show S = "S"
   show F = "F" 
 
+
 instance Eq (SF a) where 
+ -- a == b = show a == show b 
   S == S = True 
   F == F = True 
-  _ == _ = False 
+  _ == _ = False  
+
 
 instance Ord (SF a) where 
   compare S S = EQ
@@ -45,42 +49,77 @@ instance Ord (SF a) where
   compare F _ = GT  
 
 
-data Kind a b = SM_U a b | SM_Uc a b | SM_D a b | SM_Dc a b | SM_v a b | SM_E a b | SM_Ec a b
-              | NP_X a 
-              | NP_D a | NP_Dc a 
-              | NP_U a | NP_Uc a 
-              | NP_E a | NP_Ec a
-              | NP_Qu a | NP_Quc a | NP_Qd a | NP_Qdc a 
-              | NP_Lv a | NP_Lvc a | NP_Le a | NP_Lec a   
+data SFKind b = SM_U b | SM_Uc b | SM_D b | SM_Dc b | SM_v b | SM_E b | SM_Ec b
+              | NP_X  
+              | NP_D   | NP_Dc  
+              | NP_U   | NP_Uc  
+              | NP_E   | NP_Ec 
+              | NP_Qu  | NP_Quc  | NP_Qd  | NP_Qdc  
+              | NP_Lv  | NP_Lvc  | NP_Le  | NP_Lec 
            deriving (Show,Eq,Ord)
 
+instance Functor SFKind where 
+  -- fmap :: (a->b) -> Kind a b -> Kind a c
+  fmap f (SM_U  b) = SM_U  (f b)
+  fmap f (SM_Uc b) = SM_Uc (f b)
+  fmap f (SM_D  b) = SM_D  (f b)
+  fmap f (SM_Dc b) = SM_Dc (f b)
+  fmap f (SM_v  b) = SM_v  (f b)
+  fmap f (SM_E  b) = SM_E  (f b)
+  fmap f (SM_Ec b) = SM_Ec (f b) 
+  fmap f NP_X      = NP_X
+  fmap f NP_D      = NP_D
+  fmap f NP_Dc     = NP_Dc
+  fmap f NP_U      = NP_U
+  fmap f NP_Uc     = NP_Uc
+  fmap f NP_E      = NP_E
+  fmap f NP_Ec     = NP_Ec
+  fmap f NP_Qu     = NP_Qu
+  fmap f NP_Quc    = NP_Quc
+  fmap f NP_Qd     = NP_Qd
+  fmap f NP_Qdc    = NP_Qdc
+  fmap f NP_Lv     = NP_Lv
+  fmap f NP_Lvc    = NP_Lvc
+  fmap f NP_Le     = NP_Le
+  fmap f NP_Lec    = NP_Lec
+  
+
+
+type Kind a b = (a, SFKind b) 
+
+conjugateKind :: SFKind b -> Maybe (SFKind b)
+conjugateKind (SM_U  b) = Just (SM_Uc b)
+conjugateKind (SM_Uc b) = Just (SM_U  b)
+conjugateKind (SM_D  b) = Just (SM_Dc b)
+conjugateKind (SM_Dc b) = Just (SM_D  b)
+conjugateKind (SM_v  b) = Nothing
+conjugateKind (SM_E  b) = Just (SM_Ec b)
+conjugateKind (SM_Ec b) = Just (SM_E  b)
+conjugateKind NP_X     = Nothing
+conjugateKind NP_D     = Just NP_Dc 
+conjugateKind NP_Dc    = Just NP_D 
+conjugateKind NP_U     = Just NP_Uc 
+conjugateKind NP_Uc    = Just NP_U 
+conjugateKind NP_E     = Just NP_Ec 
+conjugateKind NP_Ec    = Just NP_E 
+conjugateKind NP_Qu    = Just NP_Quc 
+conjugateKind NP_Quc   = Just NP_Qu 
+conjugateKind NP_Qd    = Just NP_Qdc 
+conjugateKind NP_Qdc   = Just NP_Qd 
+conjugateKind NP_Lv    = Just NP_Lvc 
+conjugateKind NP_Lvc   = Just NP_Lv 
+conjugateKind NP_Le    = Just NP_Lec 
+conjugateKind NP_Lec   = Just NP_Le 
+
+
 conjugateParticle :: Kind a b -> Maybe (Kind a b)
-conjugateParticle (SM_U  a b) = Just (SM_Uc a b)
-conjugateParticle (SM_Uc a b) = Just (SM_U  a b)
-conjugateParticle (SM_D  a b) = Just (SM_Dc a b)
-conjugateParticle (SM_Dc a b) = Just (SM_D  a b)
-conjugateParticle (SM_v  a b) = Nothing
-conjugateParticle (SM_E  a b) = Just (SM_Ec a b)
-conjugateParticle (SM_Ec a b) = Just (SM_E  a b)
-conjugateParticle (NP_X a)    = Nothing
-conjugateParticle (NP_D a)    = Just (NP_Dc a)
-conjugateParticle (NP_Dc a)   = Just (NP_D a)
-conjugateParticle (NP_U a)    = Just (NP_Uc a)
-conjugateParticle (NP_Uc a)   = Just (NP_U a)
-conjugateParticle (NP_E a)    = Just (NP_Ec a)
-conjugateParticle (NP_Ec a)   = Just (NP_E a)
-conjugateParticle (NP_Qu a)   = Just (NP_Quc a)
-conjugateParticle (NP_Quc a)  = Just (NP_Qu a)
-conjugateParticle (NP_Qd a)   = Just (NP_Qdc a)
-conjugateParticle (NP_Qdc a)  = Just (NP_Qd a)
-conjugateParticle (NP_Lv a)   = Just (NP_Lvc a)
-conjugateParticle (NP_Lvc a)  = Just (NP_Lv a)
-conjugateParticle (NP_Le a)   = Just (NP_Lec a)
-conjugateParticle (NP_Lec a)  = Just (NP_Le a)
+conjugateParticle (sf,k) = (sf,) <$> conjugateKind k  
 
 
 getSF :: Kind a b -> a 
-getSF (SM_U  a _) = a
+getSF = fst 
+
+{-
 getSF (SM_Uc a _) = a
 getSF (SM_D  a _) = a
 getSF (SM_Dc a _) = a
@@ -102,10 +141,10 @@ getSF (NP_Lv a)   = a
 getSF (NP_Lvc a)  = a
 getSF (NP_Le a)   = a
 getSF (NP_Lec a)  = a
+-}
 
 
-
-type FieldKind = Kind () ()
+-- type FieldKind = Kind () ()
 
 type PtlKind a = Kind (SF a) Gen 
 
@@ -115,10 +154,11 @@ data Dir = I | O
          deriving (Show,Eq,Ord)
 
 
-data SuperPot3 = SuperPot3 FieldKind FieldKind FieldKind 
+data SuperPot3 = SuperPot3 (SFKind ()) (SFKind ()) (SFKind ())
 
 assignFS :: SF a -> Kind () b -> Kind (SF a) b
-assignFS sf (SM_U () b)  = SM_U sf b 
+assignFS sf (_,x) = (sf,x)
+{- assignFS sf (SM_U () b)  = SM_U sf b 
 assignFS sf (SM_Uc () b) = SM_Uc sf b 
 assignFS sf (SM_D () b)  = SM_D sf b
 assignFS sf (SM_Dc () b) = SM_Dc sf b
@@ -140,76 +180,59 @@ assignFS sf (NP_Lv ())   = NP_Lv sf
 assignFS sf (NP_Lvc ())  = NP_Lvc sf
 assignFS sf (NP_Le ())   = NP_Le sf
 assignFS sf (NP_Lec ())  = NP_Lec sf
+-}
 
+{-
 instance Functor (Kind a) where 
-  -- fmap :: (a->b) -> Kind a b -> Kind a c
-  fmap f (SM_U  a b) = SM_U  a (f b)
-  fmap f (SM_Uc a b) = SM_Uc a (f b)
-  fmap f (SM_D  a b) = SM_D  a (f b)
-  fmap f (SM_Dc a b) = SM_Dc a (f b)
-  fmap f (SM_v  a b) = SM_v  a (f b)
-  fmap f (SM_E  a b) = SM_E  a (f b)
-  fmap f (SM_Ec a b) = SM_Ec a (f b) 
-  fmap f (NP_X a)    = NP_X a
-  fmap f (NP_D a)    = NP_D a
-  fmap f (NP_Dc a)   = NP_Dc a
-  fmap f (NP_U a)    = NP_U a
-  fmap f (NP_Uc a)   = NP_Uc a
-  fmap f (NP_E a)    = NP_E a
-  fmap f (NP_Ec a)   = NP_Ec a
-  fmap f (NP_Qu a)   = NP_Qu a
-  fmap f (NP_Quc a)  = NP_Quc a
-  fmap f (NP_Qd a)   = NP_Qd a
-  fmap f (NP_Qdc a)  = NP_Qdc a
-  fmap f (NP_Lv a)   = NP_Lv a
-  fmap f (NP_Lvc a)  = NP_Lvc a
-  fmap f (NP_Le a)   = NP_Le a
-  fmap f (NP_Lec a)  = NP_Lec a
+-}
 
 assignGen :: Gen -> Kind a () -> Kind a Gen
-assignGen g = fmap (const g)
+assignGen g (sf,k) = (sf, fmap (const g) k)
 
 superpotXQLD :: [SuperPot3] 
-superpotXQLD = [ SuperPot3 (NP_X ())     (SM_Dc () ()) (NP_D ())
-               , SuperPot3 (NP_Dc ())    (SM_U  () ()) (SM_E () ())
-               , SuperPot3 (NP_Dc ())    (SM_D  () ()) (SM_v () ())
-               , SuperPot3 (NP_X ())     (SM_v  () ()) (NP_Lvc ()) 
-               , SuperPot3 (NP_X ())     (SM_E  () ()) (NP_Lec ())
-               , SuperPot3 (NP_Lv ())    (SM_D  () ()) (SM_Dc () ())
-               , SuperPot3 (NP_Le ())    (SM_U  () ()) (SM_Dc () ()) 
-               , SuperPot3 (NP_X ())     (SM_U  () ()) (NP_Quc ()) 
-               , SuperPot3 (NP_X ())     (SM_D  () ()) (NP_Qdc ())
-               , SuperPot3 (NP_Qu ())    (SM_E  () ()) (SM_Dc () ())
-               , SuperPot3 (NP_Qd ())    (SM_v  () ()) (SM_Dc () ())
+superpotXQLD = [ SuperPot3 NP_X  (SM_Dc ()) NP_D 
+               , SuperPot3 NP_Dc (SM_U  ()) (SM_E ()) 
+               , SuperPot3 NP_Dc (SM_D  ()) (SM_v ()) 
+               , SuperPot3 NP_X  (SM_v  ()) NP_Lvc  
+               , SuperPot3 NP_X  (SM_E  ()) NP_Lec 
+               , SuperPot3 NP_Lv (SM_D  ()) (SM_Dc ())
+               , SuperPot3 NP_Le (SM_U  ()) (SM_Dc ())  
+               , SuperPot3 NP_X  (SM_U  ()) NP_Quc  
+               , SuperPot3 NP_X  (SM_D  ()) NP_Qdc 
+               , SuperPot3 NP_Qu (SM_E  ()) (SM_Dc ())
+               , SuperPot3 NP_Qd (SM_v  ()) (SM_Dc ())
                ] 
 
 class EMChargeable a where 
   emcharge :: a -> Ratio Integer 
 
-instance EMChargeable (Kind a b) where 
+instance EMChargeable (SFKind b) where 
   -- emcharge :: Kind a b -> Ratio Integer
-  emcharge (SM_U  _ _) =    2 % 3
-  emcharge (SM_Uc _ _) = - (2 % 3)
-  emcharge (SM_D  _ _) = - (1 % 3)
-  emcharge (SM_Dc _ _) =    1 % 3 
-  emcharge (SM_v  _ _) =    0 
-  emcharge (SM_E  _ _) = -  1 
-  emcharge (SM_Ec _ _) = 1 
-  emcharge (NP_X  _)   = 0 
-  emcharge (NP_D  _)   = - (1 % 3) 
-  emcharge (NP_Dc _)   =    1 % 3 
-  emcharge (NP_U  _)   =    2 % 3 
-  emcharge (NP_Uc _)   = - (2 % 3)
-  emcharge (NP_E  _)   = -  1 
-  emcharge (NP_Ec _)   =    1 
-  emcharge (NP_Qu  _)  =    2 % 3 
-  emcharge (NP_Quc _)  = - (2 % 3)
-  emcharge (NP_Qd  _)  = - (1 % 3)
-  emcharge (NP_Qdc _)  =    1 % 3
-  emcharge (NP_Lv  _)  =    0 
-  emcharge (NP_Lvc _)  =    0 
-  emcharge (NP_Le  _)  = -  1
-  emcharge (NP_Lec _)  =    1
+  emcharge (SM_U  _) =    2 % 3
+  emcharge (SM_Uc _) = - (2 % 3)
+  emcharge (SM_D  _) = - (1 % 3)
+  emcharge (SM_Dc _) =    1 % 3 
+  emcharge (SM_v  _) =    0 
+  emcharge (SM_E  _) = -  1 
+  emcharge (SM_Ec _) = 1 
+  emcharge NP_X     = 0 
+  emcharge NP_D     = - (1 % 3) 
+  emcharge NP_Dc    =    1 % 3 
+  emcharge NP_U     =    2 % 3 
+  emcharge NP_Uc    = - (2 % 3)
+  emcharge NP_E     = -  1 
+  emcharge NP_Ec    =    1 
+  emcharge NP_Qu    =    2 % 3 
+  emcharge NP_Quc   = - (2 % 3)
+  emcharge NP_Qd    = - (1 % 3)
+  emcharge NP_Qdc   =    1 % 3
+  emcharge NP_Lv    =    0 
+  emcharge NP_Lvc   =    0 
+  emcharge NP_Le    = -  1
+  emcharge NP_Lec   =    1
+
+instance EMChargeable (Kind a b) where 
+  emcharge (_,x) = emcharge x  
 
 instance EMChargeable SuperPot3 where 
   emcharge (SuperPot3 x y z) = emcharge x + emcharge y + emcharge z 
@@ -220,21 +243,23 @@ data VertexFFS a = VertexFFS (Kind (SF Fermion) a,Dir) (Kind (SF Fermion) a, Dir
 deriving instance (Show a) => Show (VertexFFS a)
  
 superpot3toVertexFFS :: SuperPot3 -> [VertexFFS ()]
-superpot3toVertexFFS (SuperPot3 x y z) =
-  [ VertexFFS (assignFS F x,I) (assignFS F y,I) (assignFS S z,I)
-  , VertexFFS (assignFS F y,I) (assignFS F z,I) (assignFS S x,I)
-  , VertexFFS (assignFS F z,I) (assignFS F x,I) (assignFS S y,I)
-  , VertexFFS (assignFS F x,I) (assignFS F z,I) (assignFS S y,I)
-  , VertexFFS (assignFS F z,I) (assignFS F y,I) (assignFS S x,I)
-  , VertexFFS (assignFS F y,I) (assignFS F x,I) (assignFS S z,I)
-  , VertexFFS (assignFS F x,O) (assignFS F y,O) (assignFS S z,O)
-  , VertexFFS (assignFS F y,O) (assignFS F z,O) (assignFS S x,O)
-  , VertexFFS (assignFS F z,O) (assignFS F x,O) (assignFS S y,O)
-  , VertexFFS (assignFS F x,O) (assignFS F z,O) (assignFS S y,O)
-  , VertexFFS (assignFS F z,O) (assignFS F y,O) (assignFS S x,O)
-  , VertexFFS (assignFS F y,O) (assignFS F x,O) (assignFS S z,O)
-  ]
-
+superpot3toVertexFFS (SuperPot3 x' y' z') =
+    [ VertexFFS (assignFS F x,I) (assignFS F y,I) (assignFS S z,I)
+    , VertexFFS (assignFS F y,I) (assignFS F z,I) (assignFS S x,I)
+    , VertexFFS (assignFS F z,I) (assignFS F x,I) (assignFS S y,I)
+    , VertexFFS (assignFS F x,I) (assignFS F z,I) (assignFS S y,I)
+    , VertexFFS (assignFS F z,I) (assignFS F y,I) (assignFS S x,I)
+    , VertexFFS (assignFS F y,I) (assignFS F x,I) (assignFS S z,I)
+    , VertexFFS (assignFS F x,O) (assignFS F y,O) (assignFS S z,O)
+    , VertexFFS (assignFS F y,O) (assignFS F z,O) (assignFS S x,O)
+    , VertexFFS (assignFS F z,O) (assignFS F x,O) (assignFS S y,O)
+    , VertexFFS (assignFS F x,O) (assignFS F z,O) (assignFS S y,O)
+    , VertexFFS (assignFS F z,O) (assignFS F y,O) (assignFS S x,O)
+    , VertexFFS (assignFS F y,O) (assignFS F x,O) (assignFS S z,O)
+    ]
+  where x = ((),x')
+        y = ((),y')
+        z = ((),z')
 
 assignGenToVertexFFS :: VertexFFS () -> [VertexFFS Gen]
 assignGenToVertexFFS (VertexFFS (k1,io1) (k2,io2) (k3,io3)) = do 
@@ -253,6 +278,16 @@ data Handle = forall a. Handle (Kind (SF a) Gen,Dir)
 
 instance Show Handle where
   show (Handle (k,d)) = "Handle " ++ show k ++ " " ++ show d 
+
+{-
+instance Eq Handle where 
+  Handle (k1,d1) == Handle (k2,d2) = k1 == k2 && d1 == d2 
+
+instance Ord Handle where 
+  compare (Handle (k1,d1)) (Handle (k2,d2)) = case compare k1 k2 of 
+                                                EQ -> compare d1 d2 
+                                                a -> a 
+-}
 
 -- deriving instance Eq External 
 
@@ -339,8 +374,8 @@ makeSPair (dir1,dir2) p =
 snumber :: External -> Int 
 snumber (External l d) = 
   let s' = case l of 
-             SM_D _ G2 -> 1 
-             SM_Dc _ G2 -> -1 
+             (_, SM_D G2) -> 1 
+             (_, SM_Dc G2) -> -1 
              _ -> 0 
       sgn = case d of 
               I -> -1
@@ -350,13 +385,13 @@ snumber (External l d) =
 deltaS :: Blob a -> Int 
 deltaS (Blob (Externals p1 p2 p3 p4) _) = (sum . map snumber) [p1,p2,p3,p4]
  
-quarkSc = SM_Dc F G2 
+quarkSc = (F, SM_Dc G2)
 
-quarkS = SM_D F G2 
+quarkS = (F, SM_D G2)
 
-quarkDc = SM_Dc F G1 
+quarkDc = (F, SM_Dc G1)
 
-quarkD = SM_D F G1 
+quarkD = (F, SM_D G1)
 
 io_bar_sR_Gamma_dR_squared :: Blob () 
 io_bar_sR_Gamma_dR_squared = 
@@ -613,7 +648,7 @@ match HandleSet{..} b@(Blob e c) =
 
 
 
-main2 = do 
+main' = do 
   putStrLn "superpotential test"
   mapM_ print $ map emcharge superpotXQLD
   let vertexFFSwoGen = concatMap superpot3toVertexFFS  superpotXQLD 
@@ -641,8 +676,9 @@ main = do
   mapM_ print matchedblobs 
   let blob = io_bar_sR_Gamma_dR_squared
       hset = prepareHandleSet superpotXQLD (blobExternals blob)
-  -- print matchedblobs 
+
   mapM_ print $ match hset (matchedblobs !! 0)
+
 
 {-       vertexFFSwoGen = concatMap superpot3toVertexFFS  superpotXQLD 
       vertexFFSwGen = concatMap assignGenToVertexFFS vertexFFSwoGen
