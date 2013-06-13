@@ -8,7 +8,8 @@
 import Control.Applicative ((<$>))
 import Data.Foldable (msum)
 import Data.List (nub)
-import Data.Maybe (fromJust)
+import qualified Data.Map as M
+import Data.Maybe (fromJust, mapMaybe)
 import Data.Ratio 
 
 data Gen = G1 | G2 | G3 
@@ -82,6 +83,7 @@ type PtlKind a = Kind (SF a) Gen
 
 data Dir = I | O 
          deriving (Show,Eq,Ord)
+
 
 data SuperPot3 = SuperPot3 FieldKind FieldKind FieldKind 
 
@@ -213,9 +215,14 @@ assignGenToVertexFFS (VertexFFS (k1,io1) (k2,io2) (k3,io3)) = do
   return (VertexFFS (k'1,io1) (k'2,io2) (k'3,io3))
  
 data External = forall a. External { extKind :: PtlKind a, extDir :: Dir }
-
+          
 instance Show External where 
   show (External k d) = "External " ++ show k ++ " " ++ show d
+
+data Handle = forall a. Handle (Kind (SF a) Gen,Dir)
+
+instance Show Handle where
+  show (Handle (k,d)) = "Handle " ++ show k ++ " " ++ show d 
 
 -- deriving instance Eq External 
 
@@ -236,6 +243,8 @@ deriving instance (Ord a, Ord b) => Ord (Comb a b)
 data VLabel = V1 | V2 | V3 | V4 
             deriving (Show,Eq,Ord,Enum)
 
+class Line l where 
+  vertices :: l -> (VLabel,VLabel)
 
 data FDir = FDir Dir Bool 
             deriving (Show,Eq,Ord) 
@@ -246,9 +255,26 @@ data FLine = FL (VLabel,VLabel) FDir
 data SLine = SL (VLabel,VLabel) Dir
            deriving (Show,Eq,Ord)
 
-data Blob comb = Blob External External External External comb
-               deriving (Show) --  ,Eq,Ord)
+instance Line FLine where 
+  vertices (FL vs _) = vs
 
+instance Line SLine where 
+  vertices (SL vs _) = vs 
+
+data Externals = Externals { extPtl1 :: External
+                           , extPtl2 :: External
+                           , extPtl3 :: External
+                           , extPtl4 :: External } 
+               deriving (Show)
+
+data Blob comb = Blob { blobExternals :: Externals 
+                      , blobComb :: comb } 
+               deriving (Show)
+
+{- 
+ External External External External comb
+               deriving (Show) --  ,Eq,Ord)
+-}
 
 -- data VertexFFS = VertexFFS (Label,Dir) (Label,Dir) (Label,Dir) 
 
@@ -292,7 +318,7 @@ snumber (External l d) =
   in sgn * s' 
 
 deltaS :: Blob a -> Int 
-deltaS (Blob  p1 p2 p3 p4 _) = (sum . map snumber) [p1,p2,p3,p4]
+deltaS (Blob (Externals p1 p2 p3 p4) _) = (sum . map snumber) [p1,p2,p3,p4]
  
 quarkSc = SM_Dc F G2 
 
@@ -303,8 +329,8 @@ quarkDc = SM_Dc F G1
 quarkD = SM_D F G1 
 
 io_bar_sR_Gamma_dR_squared :: Blob () 
-io_bar_sR_Gamma_dR_squared = Blob (External quarkSc I) (External quarkSc I) 
-                                  (External quarkDc O) (External quarkDc O) () --  (Comb I2 I3) 
+io_bar_sR_Gamma_dR_squared = 
+  Blob (Externals (External quarkSc I) (External quarkSc I) (External quarkDc O) (External quarkDc O)) ()
 
 
 
@@ -326,8 +352,8 @@ makeAllCombFromPartition (Comb p1 p2) =
    [Comb fpair spair | fpair <- allfline p1, spair <- allsline p2] 
 
 makeAllBlob :: Blob () -> [Blob (Comb (FLine,FLine) (SLine,SLine))]
-makeAllBlob (Blob pt1 pt2 pt3 pt4 ()) = 
-  Blob pt1 pt2 pt3 pt4 <$>  [x | c <- allcomb, x <- makeAllCombFromPartition c ]
+makeAllBlob (Blob (Externals pt1 pt2 pt3 pt4) ()) = 
+  Blob (Externals pt1 pt2 pt3 pt4) <$>  [x | c <- allcomb, x <- makeAllCombFromPartition c ]
 
 scalarVertexDir :: SLine -> VLabel -> Maybe Dir 
 scalarVertexDir (SL (v1,v2) d) v 
@@ -350,10 +376,15 @@ fermionVertexDir (FL (v1,v2) (FDir d havemass)) v
   | v == v2 && d == O && not havemass = Just O 
   | otherwise = Nothing 
 
-
+hasVertex :: Line l => l -> VLabel -> Maybe Dir
+hasVertex l v 
+    | v == v1 = Just I
+    | v == v2 = Just O 
+    | otherwise = Nothing 
+  where (v1,v2) = vertices l 
 
 vertexDirection :: Blob (Comb (FLine,FLine) (SLine,SLine)) -> VLabel -> (Dir,Dir,Dir)
-vertexDirection (Blob p1 p2 p3 p4 (Comb (f1,f2) (s1,s2))) v = 
+vertexDirection (Blob (Externals p1 p2 p3 p4) (Comb (f1,f2) (s1,s2))) v = 
   let d1 = case v of 
              V1 -> extDir p1
              V2 -> extDir p2
@@ -367,24 +398,66 @@ matchDirection :: [(Dir,Dir,Dir)] -> Blob (Comb (FLine,FLine) (SLine,SLine)) -> 
 matchDirection dirs blob = all (\x -> (vertexDirection blob x) `elem` dirs) [V1,V2,V3,V4]
 
 
-{-
-vertexDirection (Blob p1 p2 p3 p4 (Comb (f1,f2) (s1,s2))) V2 = ptlDir p2
-vertexDirection (Blob p1 p2 p3 p4 (Comb (f1,f2) (s1,s2))) V3 = ptlDir p3
-vertexDirection (Blob p1 p2 p3 p4 (Comb (f1,f2) (s1,s2))) V4 = ptlDir p4
--}
+findVertexEdgeRel :: Blob (Comb (FLine,FLine) (SLine,SLine)) -> VLabel -> (VLabel, (FLine,SLine))
+findVertexEdgeRel (Blob (Externals _ _ _ _) (Comb (f1,f2) (s1,s2))) v = 
+  case (hasVertex f1 v, hasVertex s1 v) of 
+    (Just _, Just _)  -> (v, (f1,s1))
+    (Just _, Nothing) -> (v, (f1,s2))
+    (Nothing, Just _) -> (v, (f2,s1))
+    (Nothing,Nothing) -> (v, (f2,s2))
 
-selectVertexForExt :: External -> [VertexFFS Gen] -> [VertexFFS Gen] 
+
+
+
+makeVertexEdgeMap :: Blob (Comb (FLine,FLine) (SLine,SLine)) -> M.Map VLabel (FLine,SLine)
+makeVertexEdgeMap blob = let lst = map (findVertexEdgeRel blob) [V1,V2,V3,V4] 
+                         in M.fromList lst 
+
+selectVertexForExt :: External -> [VertexFFS Gen] -> [(Handle,[Handle])] 
 selectVertexForExt (External k d) vs = 
     case getSF k of 
-      S -> filter (checkScalar k d) vs  
-      F -> filter (checkFermion k d) vs 
+      S -> mapMaybe (checkScalar k d) vs  
+      F -> mapMaybe (checkFermion k d) vs 
   where 
     -- 
-    checkScalar :: PtlKind Scalar -> Dir -> VertexFFS Gen -> Bool
-    checkScalar k d (VertexFFS _ _ (k',d')) = k == k' && d == d'
+    checkScalar :: PtlKind Scalar -> Dir -> VertexFFS Gen -> Maybe (Handle,[Handle])
+    checkScalar k d (VertexFFS h1 h2 (k',d')) = 
+      if k == k' && d == d' then Just (Handle (k',d'),[Handle h1, Handle h2]) else Nothing
     -- 
-    checkFermion :: PtlKind Fermion -> Dir -> VertexFFS Gen -> Bool
-    checkFermion k d (VertexFFS (k1,d1) (k2,d2) _) = (k == k1 && d == d1) || (k == k2 && d == d2)
+    checkFermion :: PtlKind Fermion -> Dir -> VertexFFS Gen -> Maybe (Handle,[Handle])
+    checkFermion k d (VertexFFS (k1,d1) (k2,d2) h') 
+      | k == k1 && d == d1 = Just (Handle (k1,d1),[Handle (k2,d2), Handle h'])
+      | k == k2 && d == d2 = Just (Handle (k2,d2),[Handle (k1,d1), Handle h'])
+      | otherwise = Nothing 
+
+{-
+data Exts a = Exts { extsPtl1 :: (External, a)
+                   , extsPtl2 :: (External, a)
+                   , extsPtl3 :: (External, a)
+                   , extsPtl4 :: (External, a) }
+-}
+
+{-
+matchFSLines :: Handle -> (FLine,SLine) -> Bool 
+matchFSLines (Handle (k1,d1)) = 
+-}
+
+{-
+match :: Exts [VertexFFS Gen] -> M.Map VLabel (FLine,SLine) -> Bool 
+match exts vmap = 
+-} 
+
+
+{-
+tryVertex :: (VLabel,[Handle]External -> VertexFFS Gen -> VLabel -> M.Map VLabel -> Bool 
+tryVertex p1 vtx v m = 
+  p1 
+-}
+
+
+
+
+
 
 
 main = do 
@@ -393,14 +466,14 @@ main = do
   let vertexFFSwoGen = concatMap superpot3toVertexFFS  superpotXQLD 
       vertexFFSwGen = concatMap assignGenToVertexFFS vertexFFSwoGen
   -- mapM_ (\x -> mapM_ print x >> putStrLn "----" ) $ map assignGenToVertexFFS vertexFFSwoGen
-  let Blob e1 e2 e3 e4 _ = io_bar_sR_Gamma_dR_squared
-  print $ length (selectVertexForExt e1 vertexFFSwGen)
+  let Blob (Externals e1 e2 e3 e4) _ = io_bar_sR_Gamma_dR_squared
+  mapM_ print $ (selectVertexForExt e1 vertexFFSwGen)
   putStrLn "---"
-  print $ length (selectVertexForExt e2 vertexFFSwGen)
+  mapM_ print $ (selectVertexForExt e2 vertexFFSwGen)
   putStrLn "---"
-  print $ length (selectVertexForExt e3 vertexFFSwGen)
+  mapM_ print $ (selectVertexForExt e3 vertexFFSwGen)
   putStrLn "---"
-  print $ length (selectVertexForExt e4 vertexFFSwGen)
+  mapM_ print $ (selectVertexForExt e4 vertexFFSwGen)
 
 
 main2 = do 
@@ -410,6 +483,9 @@ main2 = do
   -- print $ isValidComb cmb
   -- print ( allcomb' == allcomb)
   let allblobs = makeAllBlob io_bar_sR_Gamma_dR_squared
-      matchedblobs =  filter (matchDirection [(I,I,I),(I,I,O),(O,O,I),(O,O,O)]) allblobs
+{-      matchedblobs =  filter (matchDirection [(I,I,I),(I,I,O),(O,O,I),(O,O,O)]) allblobs
 
-  mapM_ print matchedblobs
+  mapM_ print matchedblobs -}
+  print (head allblobs)
+  print (makeVertexEdgeMap (head allblobs))
+ 
