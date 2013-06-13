@@ -11,14 +11,14 @@
 import Control.Applicative ((<$>),(<*>))
 import Control.Monad ((>=>))
 import Data.Foldable (msum, foldrM)
-import Data.List (nub)
+import Data.List (nub, sort)
 import qualified Data.Map as M
 import Data.Maybe (fromJust, mapMaybe)
 import Data.Ratio 
 -- 
 import Debug.Trace 
 
-data Gen = G1 | G2 | G3 
+data Gen = G1 | G2 | G3 | GAll
          deriving (Show,Eq,Ord,Enum) 
 
 -- data SuperfieldKind = SF_SM_U | SF_SM_Uc | SF_SM_D | SF_SM_Dc | SF_SM_v | SF_SM_E | SF_SM_Ec
@@ -119,32 +119,6 @@ conjugateParticle (sf,k) = (sf,) <$> conjugateKind k
 getSF :: Kind a b -> a 
 getSF = fst 
 
-{-
-getSF (SM_Uc a _) = a
-getSF (SM_D  a _) = a
-getSF (SM_Dc a _) = a
-getSF (SM_v  a _) = a
-getSF (SM_E  a _) = a
-getSF (SM_Ec a _) = a
-getSF (NP_X a)    = a
-getSF (NP_D a)    = a
-getSF (NP_Dc a)   = a
-getSF (NP_U a)    = a
-getSF (NP_Uc a)   = a
-getSF (NP_E a)    = a
-getSF (NP_Ec a)   = a
-getSF (NP_Qu a)   = a
-getSF (NP_Quc a)  = a
-getSF (NP_Qd a)   = a
-getSF (NP_Qdc a)  = a
-getSF (NP_Lv a)   = a
-getSF (NP_Lvc a)  = a
-getSF (NP_Le a)   = a
-getSF (NP_Lec a)  = a
--}
-
-
--- type FieldKind = Kind () ()
 
 type PtlKind a = Kind (SF a) Gen 
 
@@ -158,33 +132,7 @@ data SuperPot3 = SuperPot3 (SFKind ()) (SFKind ()) (SFKind ())
 
 assignFS :: SF a -> Kind () b -> Kind (SF a) b
 assignFS sf (_,x) = (sf,x)
-{- assignFS sf (SM_U () b)  = SM_U sf b 
-assignFS sf (SM_Uc () b) = SM_Uc sf b 
-assignFS sf (SM_D () b)  = SM_D sf b
-assignFS sf (SM_Dc () b) = SM_Dc sf b
-assignFS sf (SM_v () b)  = SM_v sf b
-assignFS sf (SM_E () b)  = SM_E sf b
-assignFS sf (SM_Ec () b) = SM_Ec sf b
-assignFS sf (NP_X ())    = NP_X sf
-assignFS sf (NP_D ())    = NP_D sf
-assignFS sf (NP_Dc ())   = NP_Dc sf
-assignFS sf (NP_U ())    = NP_U sf
-assignFS sf (NP_Uc ())   = NP_Uc sf
-assignFS sf (NP_E ())    = NP_E sf
-assignFS sf (NP_Ec ())   = NP_Ec sf
-assignFS sf (NP_Qu ())   = NP_Qu sf
-assignFS sf (NP_Quc ())  = NP_Quc sf
-assignFS sf (NP_Qd ())   = NP_Qd sf
-assignFS sf (NP_Qdc ())  = NP_Qdc sf
-assignFS sf (NP_Lv ())   = NP_Lv sf
-assignFS sf (NP_Lvc ())  = NP_Lvc sf
-assignFS sf (NP_Le ())   = NP_Le sf
-assignFS sf (NP_Lec ())  = NP_Lec sf
--}
 
-{-
-instance Functor (Kind a) where 
--}
 
 assignGen :: Gen -> Kind a () -> Kind a Gen
 assignGen g (sf,k) = (sf, fmap (const g) k)
@@ -247,15 +195,15 @@ superpot3toVertexFFS (SuperPot3 x' y' z') =
     [ VertexFFS (assignFS F x,I) (assignFS F y,I) (assignFS S z,I)
     , VertexFFS (assignFS F y,I) (assignFS F z,I) (assignFS S x,I)
     , VertexFFS (assignFS F z,I) (assignFS F x,I) (assignFS S y,I)
-    , VertexFFS (assignFS F x,I) (assignFS F z,I) (assignFS S y,I)
-    , VertexFFS (assignFS F z,I) (assignFS F y,I) (assignFS S x,I)
-    , VertexFFS (assignFS F y,I) (assignFS F x,I) (assignFS S z,I)
+    -- , VertexFFS (assignFS F x,I) (assignFS F z,I) (assignFS S y,I)
+    -- , VertexFFS (assignFS F z,I) (assignFS F y,I) (assignFS S x,I)
+    -- , VertexFFS (assignFS F y,I) (assignFS F x,I) (assignFS S z,I)
     , VertexFFS (assignFS F x,O) (assignFS F y,O) (assignFS S z,O)
     , VertexFFS (assignFS F y,O) (assignFS F z,O) (assignFS S x,O)
     , VertexFFS (assignFS F z,O) (assignFS F x,O) (assignFS S y,O)
-    , VertexFFS (assignFS F x,O) (assignFS F z,O) (assignFS S y,O)
-    , VertexFFS (assignFS F z,O) (assignFS F y,O) (assignFS S x,O)
-    , VertexFFS (assignFS F y,O) (assignFS F x,O) (assignFS S z,O)
+    -- , VertexFFS (assignFS F x,O) (assignFS F z,O) (assignFS S y,O)
+    -- , VertexFFS (assignFS F z,O) (assignFS F y,O) (assignFS S x,O)
+    -- , VertexFFS (assignFS F y,O) (assignFS F x,O) (assignFS S z,O)
     ]
   where x = ((),x')
         y = ((),y')
@@ -279,15 +227,22 @@ data Handle = forall a. Handle (Kind (SF a) Gen,Dir)
 instance Show Handle where
   show (Handle (k,d)) = "Handle " ++ show k ++ " " ++ show d 
 
-{-
+
 instance Eq Handle where 
-  Handle (k1,d1) == Handle (k2,d2) = k1 == k2 && d1 == d2 
+  Handle ((F,k1),d1) == Handle ((F,k2),d2) = k1 == k2 && d1 == d2 
+  Handle ((S,k1),d1) == Handle ((S,k2),d2) = k1 == k2 && d1 == d2
+  _ == _ = False 
+
 
 instance Ord Handle where 
-  compare (Handle (k1,d1)) (Handle (k2,d2)) = case compare k1 k2 of 
-                                                EQ -> compare d1 d2 
-                                                a -> a 
--}
+  compare (Handle ((F,k1),d1)) (Handle ((F,k2),d2)) = case compare k1 k2 of 
+                                                        EQ -> compare d1 d2 
+                                                        a -> a 
+  compare (Handle ((F,k1),d1)) _ = GT 
+  compare (Handle ((S,k1),d1)) (Handle ((S,k2),d2)) = case compare k1 k2 of 
+                                                        EQ -> compare d1 d2 
+                                                        a -> a
+  compare (Handle ((S,k1),d1)) _ = LT 
 
 -- deriving instance Eq External 
 
@@ -482,6 +437,7 @@ makeVertexEdgeMap blob = let lst = map (findVertexEdgeRel blob) [V1,V2,V3,V4]
 
 selectVertexForExt :: External -> [VertexFFS Gen] -> [(Handle,[Handle])] 
 selectVertexForExt (External k d) vs = 
+    trace (show vs) $ 
     case getSF k of 
       S -> mapMaybe (checkScalar k d) vs  
       F -> mapMaybe (checkFermion k d) vs 
@@ -648,23 +604,25 @@ match HandleSet{..} b@(Blob e c) =
 
 
 
-main' = do 
+main = do 
   putStrLn "superpotential test"
   mapM_ print $ map emcharge superpotXQLD
   let vertexFFSwoGen = concatMap superpot3toVertexFFS  superpotXQLD 
       vertexFFSwGen = concatMap assignGenToVertexFFS vertexFFSwoGen
-  -- mapM_ (\x -> mapM_ print x >> putStrLn "----" ) $ map assignGenToVertexFFS vertexFFSwoGen
+  mapM_ (\x -> mapM_ print x >> putStrLn "----" ) $ map assignGenToVertexFFS vertexFFSwoGen
+
+  
   let Blob (Externals e1 e2 e3 e4) _ = io_bar_sR_Gamma_dR_squared
-  mapM_ print $ (selectVertexForExt e1 vertexFFSwGen)
+  mapM_ print $ {- sort $ map snd -} (selectVertexForExt e1 vertexFFSwGen)
   putStrLn "---"
-  mapM_ print $ (selectVertexForExt e2 vertexFFSwGen)
+  mapM_ print $ sort $ map snd (selectVertexForExt e2 vertexFFSwGen)
   putStrLn "---"
-  mapM_ print $ (selectVertexForExt e3 vertexFFSwGen)
+  mapM_ print $ sort $ map snd (selectVertexForExt e3 vertexFFSwGen)
   putStrLn "---"
-  mapM_ print $ (selectVertexForExt e4 vertexFFSwGen)
+  mapM_ print $ {- sort $ map snd -} (selectVertexForExt e4 vertexFFSwGen)
+  
 
-
-main = do 
+main' = do 
   putStrLn "loop" 
   print $ deltaS io_bar_sR_Gamma_dR_squared 
   -- let Blob _ _ _ _ cmb = test 
@@ -680,22 +638,3 @@ main = do
   mapM_ print $ match hset (matchedblobs !! 0)
 
 
-{-       vertexFFSwoGen = concatMap superpot3toVertexFFS  superpotXQLD 
-      vertexFFSwGen = concatMap assignGenToVertexFFS vertexFFSwoGen
-
-      vset1 = (map snd . selectVertexForExt e1) vertexFFSwGen
-      vset2 = (map snd . selectVertexForExt e2) vertexFFSwGen
-      vset3 = (map snd . selectVertexForExt e3) vertexFFSwGen
-      vset4 = (map snd . selectVertexForExt e4) vertexFFSwGen
-
-      testblob = head allblobs 
-      vemap = makeVertexEdgeMap testblob 
-  -}
-  {- 
-
-  print vset1 
-  let Just info = (M.lookup V1 vemap)
-
-  print $ matchFSLines (head (head vset1)) info ((liftComb. blobComb) testblob) 
-  -- mapM_ print (map makeVertexEdgeMap allblobs)
-  -}
