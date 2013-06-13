@@ -156,6 +156,6 @@ main = do
   -- print $ isValidComb cmb
   -- print ( allcomb' == allcomb)
   let allblobs = makeAllBlob test
-      matchedblobs =  filter (matchDirection [(I,I,I),(O,O,O)]) allblobs
+      matchedblobs =  filter (matchDirection [(I,I,I),(I,I,O),(O,O,I),(O,O,O)]) allblobs
 
   mapM_ print matchedblobs
