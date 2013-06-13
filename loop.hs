@@ -5,13 +5,17 @@
 {-# LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiWayIf #-}
+{-# LANGUAGE RecordWildCards #-}
 
-import Control.Applicative ((<$>))
-import Data.Foldable (msum)
+import Control.Applicative ((<$>),(<*>))
+import Control.Monad ((>=>))
+import Data.Foldable (msum, foldrM)
 import Data.List (nub)
 import qualified Data.Map as M
 import Data.Maybe (fromJust, mapMaybe)
 import Data.Ratio 
+-- 
+import Debug.Trace 
 
 data Gen = G1 | G2 | G3 
          deriving (Show,Eq,Ord,Enum) 
@@ -464,12 +468,17 @@ type MatchF = Either (FLine ()) (FLine (PtlKind Fermion))
 type MatchS = Either (SLine ()) (SLine (PtlKind Scalar))
 
 
-
-matchFSLines :: Handle 
-             -> ((Int,Dir),(Int,Dir)) 
+matchFSLines :: ((Int,Dir),(Int,Dir)) 
+             -> [Handle]
              -> Comb (MatchF, MatchF) (MatchS, MatchS) 
              -> Maybe (Comb (MatchF, MatchF) (MatchS, MatchS))
-matchFSLines (Handle (k1,d1)) ((i,iof),(j,ios)) c@(Comb (f1,f2) (s1,s2)) = 
+matchFSLines emap hs c = foldrM (matchFSLinesWorker emap) c hs
+
+matchFSLinesWorker :: ((Int,Dir),(Int,Dir)) 
+                   -> Handle
+                   -> Comb (MatchF, MatchF) (MatchS, MatchS) 
+                   -> Maybe (Comb (MatchF, MatchF) (MatchS, MatchS))
+matchFSLinesWorker ((i,iof),(j,ios)) (Handle (k1,d1)) c@(Comb (f1,f2) (s1,s2)) = 
   case getSF k1 of 
     S -> if | j == 1 -> 
               case s1 of 
@@ -556,9 +565,45 @@ tryVertex p1 vtx v m =
   p1 
 -}
 
+liftComb :: Comb (FLine (),FLine ()) (SLine (),SLine ()) -> Comb (MatchF, MatchF) (MatchS, MatchS)
+liftComb (Comb (f1,f2) (s1,s2)) = Comb (Left f1, Left f2) (Left s1, Left s2)
+
+data HandleSet = HandleSet { hsetVtx1Int :: [[Handle]] 
+                           , hsetVtx2Int :: [[Handle]]
+                           , hsetVtx3Int :: [[Handle]]
+                           , hsetVtx4Int :: [[Handle]] }
+
+prepareHandleSet :: [SuperPot3] -> Externals -> HandleSet 
+prepareHandleSet superpots externals = 
+  let vertexFFSwoGen = concatMap superpot3toVertexFFS  superpotXQLD 
+      vertexFFSwGen = concatMap assignGenToVertexFFS vertexFFSwoGen
+      (e1,e2,e3,e4) = ((,,,) <$> extPtl1 <*> extPtl2 <*> extPtl3 <*> extPtl4) externals
+      vset1 = (map snd . selectVertexForExt e1) vertexFFSwGen
+      vset2 = (map snd . selectVertexForExt e2) vertexFFSwGen
+      vset3 = (map snd . selectVertexForExt e3) vertexFFSwGen
+      vset4 = (map snd . selectVertexForExt e4) vertexFFSwGen
+  in HandleSet { hsetVtx1Int = vset1 
+               , hsetVtx2Int = vset2 
+               , hsetVtx3Int = vset3
+               , hsetVtx4Int = vset4 }
+               
+match :: HandleSet 
+      -> Blob (Comb (FLine (), FLine ()) (SLine (), SLine ())) 
+      -> Maybe (Blob (Comb (MatchF, MatchF) (MatchS, MatchS)))
+match HandleSet{..} b@(Blob e c) = do
+  let vemap = makeVertexEdgeMap b
+  e1 <- M.lookup V1 vemap
+  e2 <- M.lookup V2 vemap 
+  e3 <- M.lookup V3 vemap 
+  e4 <- M.lookup V4 vemap 
+  let lc = liftComb c 
+  let allhsets = [(h1,h2,h3,h4)| h1<-hsetVtx1Int, h2<-hsetVtx2Int, h3<-hsetVtx3Int, h4<-hsetVtx4Int] 
+      (h1',h2',h3',h4') = head allhsets 
+  lc' <- (matchFSLines e1 h1' >=> matchFSLines e2 h2' >=> matchFSLines e3 h3' >=> matchFSLines e4 h4') lc
 
 
-
+  return (Blob e lc')
+  -- trace (unlines [show e1, show e2, show e3, show e4]) $ Nothing 
 
 
 
@@ -589,5 +634,27 @@ main = do
 
   mapM_ print matchedblobs -}
   print (head allblobs)
-  mapM_ print (map makeVertexEdgeMap allblobs)
- 
+  let blob = io_bar_sR_Gamma_dR_squared
+      hset = prepareHandleSet superpotXQLD (blobExternals blob)
+
+  print $ match hset (head allblobs)
+
+{-       vertexFFSwoGen = concatMap superpot3toVertexFFS  superpotXQLD 
+      vertexFFSwGen = concatMap assignGenToVertexFFS vertexFFSwoGen
+
+      vset1 = (map snd . selectVertexForExt e1) vertexFFSwGen
+      vset2 = (map snd . selectVertexForExt e2) vertexFFSwGen
+      vset3 = (map snd . selectVertexForExt e3) vertexFFSwGen
+      vset4 = (map snd . selectVertexForExt e4) vertexFFSwGen
+
+      testblob = head allblobs 
+      vemap = makeVertexEdgeMap testblob 
+  -}
+  {- 
+
+  print vset1 
+  let Just info = (M.lookup V1 vemap)
+
+  print $ matchFSLines (head (head vset1)) info ((liftComb. blobComb) testblob) 
+  -- mapM_ print (map makeVertexEdgeMap allblobs)
+  -}
