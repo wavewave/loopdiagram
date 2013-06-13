@@ -360,7 +360,7 @@ quarkD = SM_D F G1
 
 io_bar_sR_Gamma_dR_squared :: Blob () 
 io_bar_sR_Gamma_dR_squared = 
-  Blob (Externals (External quarkSc I) (External quarkSc I) (External quarkDc O) (External quarkDc O)) ()
+  Blob (Externals (External quarkSc I)  (External quarkDc O)  (External quarkDc O) (External quarkSc I)) ()
 
 
 
@@ -589,20 +589,26 @@ prepareHandleSet superpots externals =
                
 match :: HandleSet 
       -> Blob (Comb (FLine (), FLine ()) (SLine (), SLine ())) 
-      -> Maybe (Blob (Comb (MatchF, MatchF) (MatchS, MatchS)))
-match HandleSet{..} b@(Blob e c) = do
+      -> [Comb (MatchF, MatchF) (MatchS, MatchS)]
+match HandleSet{..} b@(Blob e c) = 
   let vemap = makeVertexEdgeMap b
-  e1 <- M.lookup V1 vemap
-  e2 <- M.lookup V2 vemap 
-  e3 <- M.lookup V3 vemap 
-  e4 <- M.lookup V4 vemap 
-  let lc = liftComb c 
-  let allhsets = [(h1,h2,h3,h4)| h1<-hsetVtx1Int, h2<-hsetVtx2Int, h3<-hsetVtx3Int, h4<-hsetVtx4Int] 
-      (h1',h2',h3',h4') = head allhsets 
+      Just e1 = M.lookup V1 vemap
+      Just e2 = M.lookup V2 vemap 
+      Just e3 = M.lookup V3 vemap 
+      Just e4 = M.lookup V4 vemap 
+      lc = liftComb c 
+      allhsets = [(h1,h2,h3,h4)| h1<-hsetVtx1Int, h2<-hsetVtx2Int, h3<-hsetVtx3Int, h4<-hsetVtx4Int] 
+      -- (h1',h2',h3',h4') = head allhsets 
+      matchForOneHandleCombination (h1',h2',h3',h4') = 
+        (matchFSLines e1 h1' >=> matchFSLines e2 h2' >=> matchFSLines e3 h3' >=> matchFSLines e4 h4') lc
+      lst = mapMaybe matchForOneHandleCombination allhsets 
+      
+  in lst 
+{-
   lc' <- (matchFSLines e1 h1' >=> matchFSLines e2 h2' >=> matchFSLines e3 h3' >=> matchFSLines e4 h4') lc
 
 
-  return (Blob e lc')
+  return (Blob e lc') -}
   -- trace (unlines [show e1, show e2, show e3, show e4]) $ Nothing 
 
 
@@ -630,14 +636,13 @@ main = do
   -- print $ isValidComb cmb
   -- print ( allcomb' == allcomb)
   let allblobs = makeAllBlob io_bar_sR_Gamma_dR_squared
-{-      matchedblobs =  filter (matchDirection [(I,I,I),(I,I,O),(O,O,I),(O,O,O)]) allblobs
+      matchedblobs =  filter (matchDirection [(I,I,I),(O,O,O)]) allblobs
 
-  mapM_ print matchedblobs -}
-  print (head allblobs)
+  mapM_ print matchedblobs 
   let blob = io_bar_sR_Gamma_dR_squared
       hset = prepareHandleSet superpotXQLD (blobExternals blob)
-
-  print $ match hset (head allblobs)
+  -- print matchedblobs 
+  mapM_ print $ match hset (matchedblobs !! 0)
 
 {-       vertexFFSwoGen = concatMap superpot3toVertexFFS  superpotXQLD 
       vertexFFSwGen = concatMap assignGenToVertexFFS vertexFFSwoGen
