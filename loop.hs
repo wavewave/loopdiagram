@@ -437,7 +437,6 @@ makeVertexEdgeMap blob = let lst = map (findVertexEdgeRel blob) [V1,V2,V3,V4]
 
 selectVertexForExt :: External -> [VertexFFS Gen] -> [(Handle,[Handle])] 
 selectVertexForExt (External k d) vs = 
-    trace (show vs) $ 
     case getSF k of 
       S -> mapMaybe (checkScalar k d) vs  
       F -> mapMaybe (checkFermion k d) vs 
@@ -452,6 +451,9 @@ selectVertexForExt (External k d) vs =
       | k == k1 && d == d1 = Just (Handle (k1,d1),[Handle (k2,d2), Handle h'])
       | k == k2 && d == d2 = Just (Handle (k2,d2),[Handle (k1,d1), Handle h'])
       | otherwise = Nothing 
+
+replaceInternalToGAll :: Handle -> Handle 
+replaceInternalToGAll (Handle ((s,k),d)) = Handle ((s,fmap (const GAll) k),d) 
 
 
 type MatchF = Either (FLine ()) (FLine (PtlKind Fermion))
@@ -569,10 +571,10 @@ prepareHandleSet superpots externals =
   let vertexFFSwoGen = concatMap superpot3toVertexFFS  superpotXQLD 
       vertexFFSwGen = concatMap assignGenToVertexFFS vertexFFSwoGen
       (e1,e2,e3,e4) = ((,,,) <$> extPtl1 <*> extPtl2 <*> extPtl3 <*> extPtl4) externals
-      vset1 = (map snd . selectVertexForExt e1) vertexFFSwGen
-      vset2 = (map snd . selectVertexForExt e2) vertexFFSwGen
-      vset3 = (map snd . selectVertexForExt e3) vertexFFSwGen
-      vset4 = (map snd . selectVertexForExt e4) vertexFFSwGen
+      vset1 = (nub . map (map replaceInternalToGAll . sort . snd) . selectVertexForExt e1) vertexFFSwGen
+      vset2 = (nub . map (map replaceInternalToGAll . sort . snd) . selectVertexForExt e2) vertexFFSwGen
+      vset3 = (nub . map (map replaceInternalToGAll . sort . snd) . selectVertexForExt e3) vertexFFSwGen
+      vset4 = (nub . map (map replaceInternalToGAll . sort . snd) . selectVertexForExt e4) vertexFFSwGen
   in HandleSet { hsetVtx1Int = vset1 
                , hsetVtx2Int = vset2 
                , hsetVtx3Int = vset3
@@ -604,7 +606,7 @@ match HandleSet{..} b@(Blob e c) =
 
 
 
-main = do 
+main' = do 
   putStrLn "superpotential test"
   mapM_ print $ map emcharge superpotXQLD
   let vertexFFSwoGen = concatMap superpot3toVertexFFS  superpotXQLD 
@@ -612,7 +614,17 @@ main = do
   mapM_ (\x -> mapM_ print x >> putStrLn "----" ) $ map assignGenToVertexFFS vertexFFSwoGen
 
   
-  let Blob (Externals e1 e2 e3 e4) _ = io_bar_sR_Gamma_dR_squared
+  let blob = io_bar_sR_Gamma_dR_squared
+      hset = prepareHandleSet superpotXQLD (blobExternals blob)
+  mapM_ print $ hsetVtx1Int hset 
+  putStrLn "---"
+  mapM_ print $ hsetVtx2Int hset 
+  putStrLn "---"
+  mapM_ print $ hsetVtx3Int hset 
+  putStrLn "---"
+  mapM_ print $ hsetVtx4Int hset 
+  putStrLn "---"
+  {-
   mapM_ print $ {- sort $ map snd -} (selectVertexForExt e1 vertexFFSwGen)
   putStrLn "---"
   mapM_ print $ sort $ map snd (selectVertexForExt e2 vertexFFSwGen)
@@ -620,9 +632,9 @@ main = do
   mapM_ print $ sort $ map snd (selectVertexForExt e3 vertexFFSwGen)
   putStrLn "---"
   mapM_ print $ {- sort $ map snd -} (selectVertexForExt e4 vertexFFSwGen)
-  
+  -}
 
-main' = do 
+main = do 
   putStrLn "loop" 
   print $ deltaS io_bar_sR_Gamma_dR_squared 
   -- let Blob _ _ _ _ cmb = test 
@@ -634,7 +646,7 @@ main' = do
   mapM_ print matchedblobs 
   let blob = io_bar_sR_Gamma_dR_squared
       hset = prepareHandleSet superpotXQLD (blobExternals blob)
-
-  mapM_ print $ match hset (matchedblobs !! 0)
+  putStrLn "--------------"
+  mapM_ (\xs -> mapM_ print xs >> putStrLn "========") (map (match hset) matchedblobs)
 
 
