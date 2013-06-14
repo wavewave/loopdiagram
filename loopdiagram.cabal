@@ -18,6 +18,7 @@ Library
                  containers
   Exposed-Modules: 
                    HEP.Physics.LoopCalculation.BoxDiagram
+                   HEP.Physics.LoopCalculation.Graph
 
 
 Executable loop

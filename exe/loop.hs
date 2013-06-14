@@ -1,4 +1,6 @@
 import HEP.Physics.LoopCalculation.BoxDiagram 
+import HEP.Physics.LoopCalculation.Graph
+
 
 superpotXQLD :: [SuperPot3] 
 superpotXQLD = [ SuperPot3 NP_X  (SM_Dc ()) NP_D 
@@ -79,7 +81,10 @@ analysis superpot blob = do
   mapM_ (\xs -> mapM_ print xs >> putStrLn "========") (map (match hset) matchedblobs)
   -- mapM_ print $ match hset (matchedblobs !! 1) 
 
-main = analysis superpotXUDD io_bar_sR_Gamma_dR_squared
+main = analysis superpotXUDD  io_bar_cL_Gamma_uL_squared
+   -- io_bar_cR_Gamma_uR_squared
+   -- io_bar_sL_dR_bar_sR_dL
+  -- io_bar_sL_Gamma_dL_squared
   -- vertextest superpotXUDD io_bar_sR_Gamma_dR_squared
   -- io_bar_cL_Gamma_uL_squared
   -- io_bar_cR_Gamma_uR_squared
