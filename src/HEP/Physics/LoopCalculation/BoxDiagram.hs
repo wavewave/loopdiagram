@@ -138,19 +138,6 @@ assignFS sf (_,x) = (sf,x)
 assignGen :: Gen -> Kind a () -> Kind a Gen
 assignGen g (sf,k) = (sf, fmap (const g) k)
 
-superpotXQLD :: [SuperPot3] 
-superpotXQLD = [ SuperPot3 NP_X  (SM_Dc ()) NP_D 
-               , SuperPot3 NP_Dc (SM_U  ()) (SM_E ()) 
-               , SuperPot3 NP_Dc (SM_D  ()) (SM_v ()) 
-               , SuperPot3 NP_X  (SM_v  ()) NP_Lvc  
-               , SuperPot3 NP_X  (SM_E  ()) NP_Lec 
-               , SuperPot3 NP_Lv (SM_D  ()) (SM_Dc ())
-               , SuperPot3 NP_Le (SM_U  ()) (SM_Dc ())  
-               , SuperPot3 NP_X  (SM_U  ()) NP_Quc  
-               , SuperPot3 NP_X  (SM_D  ()) NP_Qdc 
-               , SuperPot3 NP_Qu (SM_E  ()) (SM_Dc ())
-               , SuperPot3 NP_Qd (SM_v  ()) (SM_Dc ())
-               ] 
 
 class EMChargeable a where 
   emcharge :: a -> Ratio Integer 
@@ -333,15 +320,6 @@ quarkDc = (F, SM_Dc G1)
 
 quarkD = (F, SM_D G1)
 
-io_bar_sR_Gamma_dR_squared :: Blob () 
-io_bar_sR_Gamma_dR_squared = 
-  Blob (Externals (External quarkSc I)  (External quarkDc O)  (External quarkDc O) (External quarkSc I)) ()
-
-
-io_bar_sL_Gamma_dL_squared :: Blob () 
-io_bar_sL_Gamma_dL_squared = 
-  Blob (Externals (External quarkS I)  (External quarkD O)  (External quarkD O) (External quarkS I)) ()
-
 
 allcomb = [ x | p1 <- [I2,I3,I4], p2 <- [I2,I3,I4], let x = Comb p1 p2, isValidComb x ] 
 
@@ -476,11 +454,17 @@ matchFSLinesWorker ((i,iof),(j,ios)) (Handle (k1,d1)) c@(Comb (f1,f2) (s1,s2)) =
             | otherwise -> (error "error in matchFSLines")
     F -> if | i == 1 -> 
               case f1 of 
-                Left f@(FL (v1,v2) d ()) ->
-                  let mf' = if matchVertexFLineDir (iof,d1) f then Just (FL (v1,v2) d k1) else Nothing
-                  in maybe Nothing (\f'->Just (Comb (Right f',f2) (s1,s2))) mf'
-                Right f@(FL (v1,v2) d k) -> 
-                  if matchVertexFLineDir (iof,d1) f && k == k1 then Just c else Nothing
+                Left f@(FL (v1,v2) d ()) -> do 
+                  k' <- getFermionKind iof d k1 
+                  f' <- if matchVertexFLineDir (iof,d1) f 
+                          then return (FL (v1,v2) d k') 
+                          else Nothing
+                  return (Comb (Right f',f2) (s1,s2))
+                Right f@(FL (v1,v2) d k) -> do
+                  k' <- getFermionKind iof d k1
+                  if matchVertexFLineDir (iof,d1) f && k == k'
+                    then return c 
+                    else Nothing
             | i == 2 ->
               case f2 of 
                 Left f@(FL (v1,v2) d ()) -> do 
@@ -496,13 +480,26 @@ matchFSLinesWorker ((i,iof),(j,ios)) (Handle (k1,d1)) c@(Comb (f1,f2) (s1,s2)) =
                     else Nothing
             | otherwise -> (error "error in matchFSLines")
 
-getFermionKind :: Dir -> FDir -> PtlKind Fermion -> Maybe (PtlKind Fermion)
-getFermionKind _ (FDir d False) k1 = Just k1
-getFermionKind I (FDir I True) k1 = Just k1 
-getFermionKind O (FDir O True) k1 = Just k1
-getFermionKind I (FDir O True) k1 = conjugateParticle k1 
-getFermionKind O (FDir I True) k1 = conjugateParticle k1
 
+
+
+{-
+                  let mf' = if matchVertexFLineDir (iof,d1) f then Just (FL (v1,v2) d k1) else Nothing
+                  in maybe Nothing (\f'->Just (Comb (Right f',f2) (s1,s2))) mf'
+                Right f@(FL (v1,v2) d k) -> 
+                  if matchVertexFLineDir (iof,d1) f && k == k1 then Just c else Nothing
+-}
+
+-- | 
+getFermionKind :: Dir   -- ^ iof  
+               -> FDir  -- ^ d in FLine 
+               -> PtlKind Fermion 
+               -> Maybe (PtlKind Fermion)
+getFermionKind _ (FDir d False) k1 = Just k1
+getFermionKind I (FDir _ True) k1 = Just k1 
+getFermionKind O (FDir _ True) k1 = conjugateParticle k1 
+
+-- | 
 matchVertexSLineDir :: (Dir,Dir) -> SLine a -> Bool 
 matchVertexSLineDir (ios,d1) (SL (v1,v2) d _) = 
   (ios == I && d == I && d1 == O) 
@@ -517,8 +514,8 @@ matchVertexFLineDir (iof,d1) (FL (v1,v2) (FDir d hasmass) _) =
   || (iof == O && d == I && not hasmass && d1 == I)
   || (iof == O && d == O && not hasmass && d1 == O)
   -- 
-  || (iof == I && d == I && hasmass && d1 == I) 
-  || (iof == I && d == O && hasmass && d1 == O) 
+  || (iof == I && d == I && hasmass && d1 == O) 
+  || (iof == I && d == O && hasmass && d1 == I) 
   || (iof == O && d == I && hasmass && d1 == O)
   || (iof == O && d == O && hasmass && d1 == I)
 
@@ -532,8 +529,8 @@ data HandleSet = HandleSet { hsetVtx1Int :: [[Handle]]
                            , hsetVtx4Int :: [[Handle]] }
 
 prepareHandleSet :: [SuperPot3] -> Externals -> HandleSet 
-prepareHandleSet superpots externals = 
-  let vertexFFSwoGen = concatMap superpot3toVertexFFS  superpotXQLD 
+prepareHandleSet superpot externals = 
+  let vertexFFSwoGen = concatMap superpot3toVertexFFS  superpot
       vertexFFSwGen = concatMap assignGenToVertexFFS vertexFFSwoGen
       (e1,e2,e3,e4) = ((,,,) <$> extPtl1 <*> extPtl2 <*> extPtl3 <*> extPtl4) externals
       vset1 = (nub . map (map replaceInternalToGAll . sort . snd) . selectVertexForExt e1) vertexFFSwGen
