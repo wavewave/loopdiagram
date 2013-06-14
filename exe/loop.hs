@@ -28,19 +28,15 @@ main' = do
   mapM_ print $ {- sort $ map snd -} (selectVertexForExt e4 vertexFFSwGen)
   -}
 
-main = do 
+analysis blob = do 
   putStrLn "loop" 
-  print $ deltaS io_bar_sR_Gamma_dR_squared 
-  -- let Blob _ _ _ _ cmb = test 
-  -- print $ isValidComb cmb
-  -- print ( allcomb' == allcomb)
-  let allblobs = makeAllBlob io_bar_sR_Gamma_dR_squared
+  print $ deltaS blob
+  let allblobs = makeAllBlob blob
       matchedblobs =  filter (matchDirection [(I,I,I),(O,O,O)]) allblobs
-
   mapM_ print matchedblobs 
-  let blob = io_bar_sR_Gamma_dR_squared
-      hset = prepareHandleSet superpotXQLD (blobExternals blob)
+  let hset = prepareHandleSet superpotXQLD (blobExternals blob)
   putStrLn "--------------"
   mapM_ (\xs -> mapM_ print xs >> putStrLn "========") (map (match hset) matchedblobs)
 
+main = analysis io_bar_sL_Gamma_dL_squared
 

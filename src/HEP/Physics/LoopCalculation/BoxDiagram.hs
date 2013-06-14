@@ -23,7 +23,6 @@ import Debug.Trace
 data Gen = G1 | G2 | G3 | GAll
          deriving (Show,Eq,Ord,Enum) 
 
--- data SuperfieldKind = SF_SM_U | SF_SM_Uc | SF_SM_D | SF_SM_Dc | SF_SM_v | SF_SM_E | SF_SM_Ec
  
 data Scalar
 data Fermion 
@@ -197,15 +196,9 @@ superpot3toVertexFFS (SuperPot3 x' y' z') =
     [ VertexFFS (assignFS F x,I) (assignFS F y,I) (assignFS S z,I)
     , VertexFFS (assignFS F y,I) (assignFS F z,I) (assignFS S x,I)
     , VertexFFS (assignFS F z,I) (assignFS F x,I) (assignFS S y,I)
-    -- , VertexFFS (assignFS F x,I) (assignFS F z,I) (assignFS S y,I)
-    -- , VertexFFS (assignFS F z,I) (assignFS F y,I) (assignFS S x,I)
-    -- , VertexFFS (assignFS F y,I) (assignFS F x,I) (assignFS S z,I)
     , VertexFFS (assignFS F x,O) (assignFS F y,O) (assignFS S z,O)
     , VertexFFS (assignFS F y,O) (assignFS F z,O) (assignFS S x,O)
     , VertexFFS (assignFS F z,O) (assignFS F x,O) (assignFS S y,O)
-    -- , VertexFFS (assignFS F x,O) (assignFS F z,O) (assignFS S y,O)
-    -- , VertexFFS (assignFS F z,O) (assignFS F y,O) (assignFS S x,O)
-    -- , VertexFFS (assignFS F y,O) (assignFS F x,O) (assignFS S z,O)
     ]
   where x = ((),x')
         y = ((),y')
@@ -246,15 +239,11 @@ instance Ord Handle where
                                                         a -> a
   compare (Handle ((S,k1),d1)) _ = LT 
 
--- deriving instance Eq External 
-
--- deriving instance Ord External 
-
 
 data Partition = I2 | I3 | I4 
                deriving (Show,Eq,Ord) 
  
-data Comb a b = Comb a b -- Partition Partition
+data Comb a b = Comb a b 
 
 deriving instance (Eq a, Eq b) => Eq (Comb a b) 
 
@@ -293,12 +282,6 @@ data Blob comb = Blob { blobExternals :: Externals
                       , blobComb :: comb } 
                deriving (Show)
 
-{- 
- External External External External comb
-               deriving (Show) --  ,Eq,Ord)
--}
-
--- data VertexFFS = VertexFFS (Label,Dir) (Label,Dir) (Label,Dir) 
 
 isValidComb :: Comb Partition Partition -> Bool  
 isValidComb (Comb p1 p2) = p1 /= p2 
@@ -355,9 +338,10 @@ io_bar_sR_Gamma_dR_squared =
   Blob (Externals (External quarkSc I)  (External quarkDc O)  (External quarkDc O) (External quarkSc I)) ()
 
 
+io_bar_sL_Gamma_dL_squared :: Blob () 
+io_bar_sL_Gamma_dL_squared = 
+  Blob (Externals (External quarkS I)  (External quarkD O)  (External quarkD O) (External quarkS I)) ()
 
-
--- allcomb = [ Comb I2 I3, Comb I2 I4, Comb I3 I2, Comb I3 I4, Comb I4 I2, Comb I4 I3] 
 
 allcomb = [ x | p1 <- [I2,I3,I4], p2 <- [I2,I3,I4], let x = Comb p1 p2, isValidComb x ] 
 
@@ -539,27 +523,6 @@ matchVertexFLineDir (iof,d1) (FL (v1,v2) (FDir d hasmass) _) =
   || (iof == O && d == O && hasmass && d1 == I)
 
 
-
-{-
-data Exts a = Exts { extsPtl1 :: (External, a)
-                   , extsPtl2 :: (External, a)
-                   , extsPtl3 :: (External, a)
-                   , extsPtl4 :: (External, a) }
--}
-
-
-{-
-match :: Exts [VertexFFS Gen] -> M.Map VLabel (FLine,SLine) -> Bool 
-match exts vmap = 
--} 
-
-
-{-
-tryVertex :: (VLabel,[Handle]External -> VertexFFS Gen -> VLabel -> M.Map VLabel -> Bool 
-tryVertex p1 vtx v m = 
-  p1 
--}
-
 liftComb :: Comb (FLine (),FLine ()) (SLine (),SLine ()) -> Comb (MatchF, MatchF) (MatchS, MatchS)
 liftComb (Comb (f1,f2) (s1,s2)) = Comb (Left f1, Left f2) (Left s1, Left s2)
 
@@ -593,18 +556,11 @@ match HandleSet{..} b@(Blob e c) =
       Just e4 = M.lookup V4 vemap 
       lc = liftComb c 
       allhsets = [(h1,h2,h3,h4)| h1<-hsetVtx1Int, h2<-hsetVtx2Int, h3<-hsetVtx3Int, h4<-hsetVtx4Int] 
-      -- (h1',h2',h3',h4') = head allhsets 
       matchForOneHandleCombination (h1',h2',h3',h4') = 
         (matchFSLines e1 h1' >=> matchFSLines e2 h2' >=> matchFSLines e3 h3' >=> matchFSLines e4 h4') lc
       lst = mapMaybe matchForOneHandleCombination allhsets 
       
   in lst 
-{-
-  lc' <- (matchFSLines e1 h1' >=> matchFSLines e2 h2' >=> matchFSLines e3 h3' >=> matchFSLines e4 h4') lc
-
-
-  return (Blob e lc') -}
-  -- trace (unlines [show e1, show e2, show e3, show e4]) $ Nothing 
 
 
 
