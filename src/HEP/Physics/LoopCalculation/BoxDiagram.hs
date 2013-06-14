@@ -311,13 +311,14 @@ snumber (External l d) =
 
 deltaS :: Blob a -> Int 
 deltaS (Blob (Externals p1 p2 p3 p4) _) = (sum . map snumber) [p1,p2,p3,p4]
- 
+
+quarkCc = (F, SM_Uc G2)
+quarkC = (F, SM_U G2)
 quarkSc = (F, SM_Dc G2)
-
 quarkS = (F, SM_D G2)
-
+quarkUc = (F, SM_Uc G1)
+quarkU = (F, SM_U G1)
 quarkDc = (F, SM_Dc G1)
-
 quarkD = (F, SM_D G1)
 
 
