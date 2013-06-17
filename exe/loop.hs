@@ -1,4 +1,4 @@
-import HEP.Physics.LoopCalculation.BoxDiagram 
+import HEP.Physics.LoopCalculation.Box 
 import HEP.Physics.LoopCalculation.Graph
 
 
@@ -23,7 +23,14 @@ superpotXUDD = [ SuperPot3 NP_X  (SM_Uc ()) NP_U
                , SuperPot3 NP_Dc (SM_Uc ()) (SM_Dc ())  
                ] 
 
-
+superpotXLLE :: [SuperPot3]
+superpotXLLE = [ SuperPot3 NP_X (SM_v ()) NP_Lvc 
+               , SuperPot3 NP_X (SM_E ()) NP_Lec
+               , SuperPot3 NP_Lv (SM_E ()) (SM_Ec ())
+               , SuperPot3 NP_Le (SM_v ()) (SM_Ec ())
+               , SuperPot3 NP_X (SM_Ec ()) NP_E
+               , SuperPot3 NP_Ec (SM_v ()) (SM_E ())
+               ]
 
 test_superpotXQLD :: [SuperPot3]
 test_superpotXQLD = [ SuperPot3 NP_X  (SM_Dc ()) NP_D 
@@ -50,6 +57,35 @@ io_bar_cR_Gamma_uR_squared =
 io_bar_cL_Gamma_uL_squared :: Blob () 
 io_bar_cL_Gamma_uL_squared = 
   Blob (Externals (External quarkC O)  (External quarkU I) (External quarkU I)  (External quarkC O)) ()
+
+
+io_bar_muC_eC_bar_uL_uL :: Blob () 
+io_bar_muC_eC_bar_uL_uL = 
+  Blob (Externals (External leptonMuc O)  (External leptonEc I)  (External quarkU I) (External quarkU O)) ()
+
+
+io_mu_ebar_dc_dcbar :: Blob () 
+io_mu_ebar_dc_dcbar = 
+  Blob (Externals (External leptonMu I)  (External leptonE O)  (External quarkDc I) (External quarkDc O)) ()
+
+io_mu_ebar_uc_ucbar :: Blob () 
+io_mu_ebar_uc_ucbar = 
+  Blob (Externals (External leptonMu I)  (External leptonE O)  (External quarkUc I) (External quarkUc O)) ()
+
+io_mu_ebar_d_dbar :: Blob () 
+io_mu_ebar_d_dbar = 
+  Blob (Externals (External leptonMu I)  (External leptonE O)  (External quarkD I) (External quarkD O)) ()
+
+io_mu_ebar_u_ubar :: Blob () 
+io_mu_ebar_u_ubar = 
+  Blob (Externals (External leptonMu I)  (External leptonE O)  (External quarkU I) (External quarkU O)) ()
+
+
+
+
+io_mu_ebar_ebar_e :: Blob () 
+io_mu_ebar_ebar_e = 
+  Blob (Externals (External leptonMu I)  (External leptonE O)  (External leptonE O) (External leptonE I)) ()
 
 
 
@@ -81,7 +117,13 @@ analysis superpot blob = do
   mapM_ (\xs -> mapM_ print xs >> putStrLn "========") (map (match hset) matchedblobs)
   -- mapM_ print $ match hset (matchedblobs !! 1) 
 
-main = analysis superpotXUDD  io_bar_cL_Gamma_uL_squared
+main = vertextest superpotXLLE io_mu_ebar_ebar_e
+
+-- analysis superpotXQLD io_mu_ebar_ebar_e
+ -- io_mu_ebar_uc_ucbar
+   -- io_mu_ebar_d_dbar
+   -- io_mu_ebar_dc_dcbar
+    -- io_bar_muC_eC_bar_uL_uL
    -- io_bar_cR_Gamma_uR_squared
    -- io_bar_sL_dR_bar_sR_dL
   -- io_bar_sL_Gamma_dL_squared

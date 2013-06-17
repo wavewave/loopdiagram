@@ -5,7 +5,7 @@
 
 -----------------------------------------------------------------------------
 -- |
--- Module      : HEP.Physics.LoopCalculation.BoxDiagram
+-- Module      : HEP.Physics.LoopCalculation.Box
 -- Copyright   : (c) 2013 Ian-Woo Kim
 --
 -- License     : GPL-3
@@ -15,7 +15,7 @@
 --
 -----------------------------------------------------------------------------
 
-module HEP.Physics.LoopCalculation.BoxDiagram where 
+module HEP.Physics.LoopCalculation.Box where 
 
 import Control.Applicative ((<$>),(<*>))
 import Control.Monad ((>=>))
@@ -103,7 +103,10 @@ quarkU = (F, SM_U G1)
 quarkDc = (F, SM_Dc G1)
 quarkD = (F, SM_D G1)
 
-
+leptonMu = (F, SM_E G2)
+leptonMuc= (F, SM_Ec G2)
+leptonE = (F, SM_E G1)
+leptonEc = (F, SM_Ec G1)
 allcomb = [ x | p1 <- [I2,I3,I4], p2 <- [I2,I3,I4], let x = Comb p1 p2, isValidComb x ] 
 
 allfline p = [makeFPair (d1,d2) p | d1 <- allfdir, d2 <- allfdir] 

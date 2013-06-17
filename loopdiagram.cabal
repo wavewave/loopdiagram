@@ -17,7 +17,7 @@ Library
   Build-Depends: base>4, 
                  containers
   Exposed-Modules: 
-                   HEP.Physics.LoopCalculation.BoxDiagram
+                   HEP.Physics.LoopCalculation.Box
                    HEP.Physics.LoopCalculation.Graph
 
 
